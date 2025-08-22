@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertPostSchema, insertSocialAccountSchema, insertActivitySchema } from "@shared/schema";
+import { insertPostSchema, insertSocialAccountSchema, insertActivitySchema, insertContentAnalysisSchema, insertBrandVoiceSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -167,6 +167,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         console.error("Error creating activity:", error);
         res.status(500).json({ message: "Failed to create activity" });
+      }
+    }
+  });
+
+  // AI Content Analysis routes
+  app.post('/api/content/analyze', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { content, postId } = req.body;
+      
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ message: "Content is required" });
+      }
+      
+      const analysis = await storage.analyzeContent(content, userId, postId);
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error analyzing content:", error);
+      res.status(500).json({ message: "Failed to analyze content" });
+    }
+  });
+
+  app.get('/api/content/analysis/:postId', isAuthenticated, async (req: any, res) => {
+    try {
+      const postId = req.params.postId;
+      const analysis = await storage.getContentAnalysis(postId);
+      
+      if (!analysis) {
+        return res.status(404).json({ message: "Analysis not found" });
+      }
+      
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error fetching content analysis:", error);
+      res.status(500).json({ message: "Failed to fetch content analysis" });
+    }
+  });
+
+  // A/B Testing routes
+  app.post('/api/ab-test/variants', isAuthenticated, async (req: any, res) => {
+    try {
+      const variantData = req.body;
+      const variant = await storage.createAbTestVariant(variantData);
+      res.json(variant);
+    } catch (error) {
+      console.error("Error creating A/B test variant:", error);
+      res.status(500).json({ message: "Failed to create A/B test variant" });
+    }
+  });
+
+  app.get('/api/ab-test/variants/:postId', isAuthenticated, async (req: any, res) => {
+    try {
+      const postId = req.params.postId;
+      const variants = await storage.getAbTestVariants(postId);
+      res.json(variants);
+    } catch (error) {
+      console.error("Error fetching A/B test variants:", error);
+      res.status(500).json({ message: "Failed to fetch A/B test variants" });
+    }
+  });
+
+  // Brand Voice Settings routes
+  app.get('/api/brand-voice', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const settings = await storage.getBrandVoiceSettings(userId);
+      
+      if (!settings) {
+        // Return default settings if none exist
+        return res.json({
+          tone: 'professional',
+          voice: 'formal',
+          keywordInclude: [],
+          keywordAvoid: [],
+          industryType: null,
+          targetAudience: null,
+          brandGuidelines: null
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching brand voice settings:", error);
+      res.status(500).json({ message: "Failed to fetch brand voice settings" });
+    }
+  });
+
+  app.post('/api/brand-voice', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const settingsData = insertBrandVoiceSettingsSchema.parse({
+        ...req.body,
+        userId,
+      });
+      const settings = await storage.upsertBrandVoiceSettings(settingsData);
+      res.json(settings);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid brand voice settings", errors: error.errors });
+      } else {
+        console.error("Error saving brand voice settings:", error);
+        res.status(500).json({ message: "Failed to save brand voice settings" });
       }
     }
   });

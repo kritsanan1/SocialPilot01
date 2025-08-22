@@ -90,11 +90,56 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Content optimization and AI analysis
+export const contentAnalysis = pgTable("content_analysis", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id"),
+  content: text("content").notNull(),
+  engagementScore: integer("engagement_score"), // 0-100
+  seoScore: integer("seo_score"), // 0-100
+  readabilityScore: integer("readability_score"), // 0-100
+  brandVoiceScore: integer("brand_voice_score"), // 0-100
+  overallScore: integer("overall_score"), // 0-100
+  suggestions: jsonb("suggestions"), // Array of improvement suggestions
+  hashtags: text("hashtags").array(), // AI-suggested hashtags
+  bestPostingTimes: jsonb("best_posting_times"), // Platform-specific optimal times
+  sentimentScore: integer("sentiment_score"), // -100 to 100
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// A/B testing variants
+export const abTestVariants = pgTable("ab_test_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  originalPostId: varchar("original_post_id").notNull(),
+  variantContent: text("variant_content").notNull(),
+  variantType: varchar("variant_type").notNull(), // 'headline', 'cta', 'hashtags', 'emoji'
+  performanceScore: integer("performance_score").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Brand voice settings
+export const brandVoiceSettings = pgTable("brand_voice_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  brandName: varchar("brand_name").notNull(),
+  tone: varchar("tone").notNull(), // 'professional', 'casual', 'friendly', 'authoritative'
+  voice: varchar("voice").notNull(), // 'formal', 'conversational', 'humorous', 'inspiring'
+  keywordInclude: text("keywords_include").array(), // Words to encourage
+  keywordAvoid: text("keywords_avoid").array(), // Words to avoid
+  industryType: varchar("industry_type"),
+  targetAudience: text("target_audience"),
+  brandGuidelines: text("brand_guidelines"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   socialAccounts: many(socialAccounts),
   posts: many(posts),
   activities: many(activities),
+  brandVoiceSettings: many(brandVoiceSettings),
 }));
 
 export const socialAccountsRelations = relations(socialAccounts, ({ one }) => ({
@@ -110,6 +155,8 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
     references: [users.id],
   }),
   analytics: many(postAnalytics),
+  contentAnalysis: many(contentAnalysis),
+  abTestVariants: many(abTestVariants),
 }));
 
 export const postAnalyticsRelations = relations(postAnalytics, ({ one }) => ({
@@ -122,6 +169,27 @@ export const postAnalyticsRelations = relations(postAnalytics, ({ one }) => ({
 export const activitiesRelations = relations(activities, ({ one }) => ({
   user: one(users, {
     fields: [activities.userId],
+    references: [users.id],
+  }),
+}));
+
+export const contentAnalysisRelations = relations(contentAnalysis, ({ one }) => ({
+  post: one(posts, {
+    fields: [contentAnalysis.postId],
+    references: [posts.id],
+  }),
+}));
+
+export const abTestVariantsRelations = relations(abTestVariants, ({ one }) => ({
+  originalPost: one(posts, {
+    fields: [abTestVariants.originalPostId],
+    references: [posts.id],
+  }),
+}));
+
+export const brandVoiceSettingsRelations = relations(brandVoiceSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [brandVoiceSettings.userId],
     references: [users.id],
   }),
 }));
@@ -142,7 +210,18 @@ export type PostAnalytics = typeof postAnalytics.$inferSelect;
 export type InsertActivity = typeof activities.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
 
+export type InsertContentAnalysis = typeof contentAnalysis.$inferInsert;
+export type ContentAnalysis = typeof contentAnalysis.$inferSelect;
+
+export type InsertAbTestVariant = typeof abTestVariants.$inferInsert;
+export type AbTestVariant = typeof abTestVariants.$inferSelect;
+
+export type InsertBrandVoiceSettings = typeof brandVoiceSettings.$inferInsert;
+export type BrandVoiceSettings = typeof brandVoiceSettings.$inferSelect;
+
 // Zod schemas
 export const insertSocialAccountSchema = createInsertSchema(socialAccounts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPostSchema = createInsertSchema(posts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertActivitySchema = createInsertSchema(activities).omit({ id: true, createdAt: true });
+export const insertContentAnalysisSchema = createInsertSchema(contentAnalysis).omit({ id: true, createdAt: true });
+export const insertBrandVoiceSettingsSchema = createInsertSchema(brandVoiceSettings).omit({ id: true, createdAt: true, updatedAt: true });
