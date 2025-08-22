@@ -400,6 +400,30 @@ export default function PostModal({ isOpen, onClose }: PostModalProps) {
                         <div className="flex items-center mb-2">
                           <Hash className="h-3 w-3 mr-1 text-twitter-blue" />
                           <span className="text-xs font-medium">AI Suggestions</span>
+                          <Button 
+                            type="button"
+                            variant="ghost" 
+                            size="sm" 
+                            className="ml-auto"
+                            onClick={async () => {
+                              if (!content.trim()) return;
+                              try {
+                                const response = await fetch('/api/hashtags/generate', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ content: content.trim() }),
+                                });
+                                const data = await response.json();
+                                if (data.hashtags) {
+                                  setAnalysis(prev => ({ ...prev, hashtags: data.hashtags }));
+                                }
+                              } catch (error) {
+                                console.error('Failed to generate hashtags:', error);
+                              }
+                            }}
+                          >
+                            Generate
+                          </Button>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {analysis.hashtags?.map((tag: string, index: number) => (

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertPostSchema, insertSocialAccountSchema, insertActivitySchema, insertContentAnalysisSchema, insertBrandVoiceSettingsSchema } from "@shared/schema";
 import { z } from "zod";
+import { ayrshareService } from "./ayrshare";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -176,11 +177,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const { content, postId } = req.body;
-      
+
       if (!content || typeof content !== 'string') {
         return res.status(400).json({ message: "Content is required" });
       }
-      
+
       const analysis = await storage.analyzeContent(content, userId, postId);
       res.json(analysis);
     } catch (error) {
@@ -193,11 +194,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const postId = req.params.postId;
       const analysis = await storage.getContentAnalysis(postId);
-      
+
       if (!analysis) {
         return res.status(404).json({ message: "Analysis not found" });
       }
-      
+
       res.json(analysis);
     } catch (error) {
       console.error("Error fetching content analysis:", error);
@@ -233,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const settings = await storage.getBrandVoiceSettings(userId);
-      
+
       if (!settings) {
         // Return default settings if none exist
         return res.json({
@@ -246,7 +247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           brandGuidelines: null
         });
       }
-      
+
       res.json(settings);
     } catch (error) {
       console.error("Error fetching brand voice settings:", error);
@@ -271,6 +272,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(500).json({ message: "Failed to save brand voice settings" });
       }
     }
+  });
+
+  // Ayrshare analytics routes
+  app.get('/api/analytics/social', isAuthenticated, async (req: any, res) => {
+    try {
+      const { platforms } = req.query;
+      const platformArray = platforms ? platforms.split(',') : ['twitter', 'instagram', 'linkedin'];
+
+      const analytics = await ayrshareService.getSocialAnalytics(platformArray);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching social analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  app.post('/api/analytics/post', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id, platforms } = req.body;
+      const analytics = await ayrshareService.getPostAnalytics(id, platforms);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching post analytics:", error);
+      res.status(500).json({ message: "Failed to fetch post analytics" });
+    }
+  });
+
+  // Auto-generate hashtags
+  app.post('/api/hashtags/generate', isAuthenticated, async (req: any, res) => {
+    try {
+      const { content } = req.body;
+      const hashtags = await ayrshareService.generateHashtags(content);
+      res.json(hashtags);
+    } catch (error) {
+      console.error("Error generating hashtags:", error);
+      res.status(500).json({ message: "Failed to generate hashtags" });
+    }
+  });
+
+  // Get connected social accounts via Ayrshare
+  app.get('/api/ayrshare/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userDetails = await ayrshareService.getUserDetails();
+      res.json(userDetails);
+    } catch (error) {
+      console.error("Error fetching Ayrshare user details:", error);
+      res.status(500).json({ message: "Failed to fetch user details" });
+    }
+  });
+
+  // Create Ayrshare user profile (Business Plan)
+  app.post('/api/ayrshare/profile', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title } = req.body;
+      const profile = await ayrshareService.createUserProfile(title || `Profile for ${userId}`);
+      res.json(profile);
+    } catch (error) {
+      console.error("Error creating Ayrshare profile:", error);
+      res.status(500).json({ message: "Failed to create profile" });
+    }
+  });
+
+  // Error handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
   });
 
   const httpServer = createServer(app);
